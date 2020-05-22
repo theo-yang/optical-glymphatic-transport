@@ -6,7 +6,7 @@ clear all
 
 % Set Peclet and Sherwood Numbers
 Pe = 2;
-Sh = .2;
+Sh = 0.5;
 
 % Solve non-dimensional elliptical problem
 r = linspace(0,1);
@@ -15,6 +15,7 @@ pde = @(r,z,w,dwdr) pdefun(r,z,w,dwdr,Pe);
 radial_bc = @(r0,w0,rR,wR,z) rbc(r0,w0,rR,wR,z,Sh);
 sol = pdepe(1,pde,@zbc,radial_bc,r,z);
 
+% Plot r by z heatmap
 close all
 r_by_z = [flip(sol',1);sol']; 
 f = figure;
