@@ -1,5 +1,5 @@
 %% Glymphatic Clearance
-%% Load Data
+%% Load Data from supplemental
 clc
 close all
 clear all
@@ -11,22 +11,29 @@ for k=1:numel(sheet_name)
 end
 %% Solve BVP for changes in TPD
 
-%--------------------Calucate average TPD in Fig 3A------------------------
-% Get Data From Fig 3B
-i2a = find(contains(sheet_name,'Fig2A'));
-f2a = data{i2a};
-IOP_mean = 18;
-ICP = [16.7,3.6,0.5];
-TLD = IOP_mean - ICP;
+%---------Find Pressure data from imaging data (t = 25 - 30 min)-----------
+f3a = data{contains(sheet_name,'Fig3A')};
+
+[~,start] = min(abs(f3a(:,1) - 25));
+[~,stop] = min(abs(f3a(:,1) - 30));
+
+High_ICP = mean(f3a(start:stop,2));
+Low_ICP = mean(f3a(start:stop,4));
+Norm_ICP = mean(f3a(start:stop,6));
+ICP = [High_ICP,Norm_ICP,Low_ICP];
+
+
+% --------------------Calucate average TPD in Fig 3A------------------------
+TLD = 15.5 - ICP; % Set IOP to 15.5 mmHg as reasonable guess
 
 % -----------------------------Solve BVP------------------------------------
-% Define Normal as Pe = 2, Sh = 0.5
-Pe = 2 .* TLD ./ TLD(2);
+% Define Normal as Pe = 1, Sh = 0.5
+Pe = TLD / TLD(2);
 Sh = 0.5;
 
 % define r and z mesh
-r = linspace(0,100);
-z = linspace(0,100);
+r = linspace(0,1);
+z = linspace(0,1);
 
 % Solve and Plot r by z heatmaps
 f = figure;
@@ -35,7 +42,7 @@ f = figure;
 rspan = linspace(0,500);
 zspan = linspace(0,5000);
 for i = 1:3
-    sol = solve_BVP(Pe(i),Sh,.7);
+    sol = solve_BVP(r,z,Pe(i),Sh,1);
     r_by_z = [flip(sol',1);sol']; 
     subplot(3,1,i);
     hold on
@@ -58,8 +65,8 @@ for i = 1:3
 end
 %% Solve BVP for changes in lamina cibrosa permeability
 
-% Define Normal as Pe = 2, Sh = 0.5
-Pe = [0.5,2,2];
+% Define Normal as Pe = 1, Sh = 0.5
+Pe = [0.5,1,1];
 Sh = [0.5,0.5,0.2];
 
 % define r and z mesh
@@ -198,17 +205,20 @@ function [c,f,s] = pdefun(r,z,w,dwdr,Pe)
     f = dwdr;
     s = 1 ./ r .* dwdr;
 end
+
 function w0 = zbc(z,lb)
 % Define axial Boundary Condition for glymphatic clearance model 
     w0 = lb;
 end
+
 function [p0,q0,pR,qR] = rbc(r0,w0,rR,wR,z,Sh)
 % Define radial Boundary Conditions for glymphatic clearance model 
     p0 = 0; % ignored bc m = 1
     q0 = 0; % ignored bc m = 1
-    pR = Sh;
+    pR = Sh * wR;
     qR = 1;
 end
+
 function h = circ(z,ax)
 % Helper function for drawing circles in 3D
 th = 0:pi/50:2*pi;
@@ -218,12 +228,12 @@ zunit = zeros(1,length(xunit)) + z;
 h = plot3(xunit,yunit,zunit,'red','Parent',ax);
 end
 
-function sol = solve_BVP(Pe,Sh,lb)
-% Solves the PDE for given Peclet and Sherwood numbers, and plots an r_by_z
-% heatmap with supplied title
-% If save is true, saves the heatmap as 'title.jpg'
-r = linspace(0,1);
-z = linspace(0,1);
+function sol = solve_BVP(r,z,Pe,Sh,lb)
+% Solves the PDE for 
+% - Pe = Peclet number
+% - Sh = Sherwood number
+% - lb = concentration at left boundary
+% OUPUT: Returns r by z matrix of concentrations
 pde = @(r,z,w,dwdr) pdefun(r,z,w,dwdr,Pe);
 radial_bc = @(r0,w0,rR,wR,z) rbc(r0,w0,rR,wR,z,Sh);
 sol = pdepe(1,pde,@(z) zbc(z,lb),radial_bc,r,z);
